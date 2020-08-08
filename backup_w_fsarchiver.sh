@@ -21,7 +21,6 @@ backup_f=false
 restore_f=false
 name_f=false
 list_backup_f=false
-force_f=false
 
 ORIG_VOL='root' # name of the logical volume to backup
 SNAP_VOL='root_snap' # name of the snapshot to create
@@ -33,14 +32,13 @@ FSAOPTS='-z5 -j3' # options to pass to fsarchiver
 VOL_GROUP=$(lvs -S lv_name=${ORIG_VOL} --no-heading -o vg_name | xargs)
 
 print_usage () {
-    echo "script usage: $(basename $0) [-b] [-r] [-l] [-f] [-n backup_name]"
+    echo "script usage: $(basename $0) [-b] [-r] [-l] [-n backup_name]"
     echo "-b: create new backup with name backup_name"
     echo "-r: restore backup_name"
     echo "-l: list all backups"
-    echo "-f: force remove existing snapshot volume if exist"
 }
 
-while getopts ':brlfn:' OPTION; do
+while getopts ':brln:' OPTION; do
     case "$OPTION" in
         b)
             backup_f=true
@@ -50,9 +48,6 @@ while getopts ':brlfn:' OPTION; do
             ;;
         l)
             list_backup_f=true
-            ;;
-        f)
-            force_f=true
             ;;
         n)
             name_f=true
@@ -113,25 +108,15 @@ fi
 if [ -e "/dev/${VOL_GROUP}/${SNAP_VOL}" ]
 then
     echo "the lvm snapshot already exists"
-    if ! $force_f ; then
-        echo "remove the lvm snapshot manually first."
-        exit 1
-    else
-        echo "force remove the existing snapshot"
-        lvremove -f /dev/${VOL_GROUP}/${SNAP_VOL}
-    fi
+    echo "force remove the existing snapshot"
+    lvremove -f /dev/${VOL_GROUP}/${SNAP_VOL}
 fi
 
 # create the lvm snapshot
 lvcreate -l 100%FREE -s -n ${SNAP_VOL} /dev/${VOL_GROUP}/${ORIG_VOL}
 
 if $backup_f ; then
-    if ! $force_f ; then
-        # create backup file and checksum. fsarchiver will exit if same backupname exist
-        fsarchiver savefs ${FSAOPTS} /${STOR_VOL}/${BACKNAME}.fsa /dev/${VOL_GROUP}/${SNAP_VOL}
-    else
-        fsarchiver savefs -o ${FSAOPTS} /${STOR_VOL}/${BACKNAME}.fsa /dev/${VOL_GROUP}/${SNAP_VOL}
-    fi
+    fsarchiver savefs -o ${FSAOPTS} /${STOR_VOL}/${BACKNAME}.fsa /dev/${VOL_GROUP}/${SNAP_VOL}
     md5sum /${STOR_VOL}/${BACKNAME}.fsa > /${STOR_VOL}/${BACKNAME}.md5
     # remove the snapshot vol
     lvremove -f /dev/${VOL_GROUP}/${SNAP_VOL}
