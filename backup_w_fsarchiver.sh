@@ -30,6 +30,7 @@ FSAOPTS='-z5 -j3' # options to pass to fsarchiver
 
 # get volumn group name of root. xargs to trim space
 VOL_GROUP=$(lvs -S lv_name=${ORIG_VOL} --no-heading -o vg_name | xargs)
+BOOT_PARTITION=$(df -h | grep '/boot' | awk '{print $1}')
 
 print_usage () {
     echo "script usage: $(basename $0) [-b] [-r] [-l] [-n backup_name]"
@@ -118,12 +119,22 @@ lvcreate -l 100%FREE -s -n ${SNAP_VOL} /dev/${VOL_GROUP}/${ORIG_VOL}
 if $backup_f ; then
     fsarchiver savefs -o ${FSAOPTS} /${STOR_VOL}/${BACKNAME}.fsa /dev/${VOL_GROUP}/${SNAP_VOL}
     md5sum /${STOR_VOL}/${BACKNAME}.fsa > /${STOR_VOL}/${BACKNAME}.md5
-    # remove the snapshot vol
     lvremove -f /dev/${VOL_GROUP}/${SNAP_VOL}
+
+    umount ${BOOT_PARTITION}
+    dd if=${BOOT_PARTITION} of=/${STOR_VOL}/${BACKNAME}.img
+    mount ${BOOT_PARTITION} /boot
+
+    echo "Finished. Please reboot!"
 fi
 
 if $restore_f ; then
     # restore to snap vol then merge to origin vol
     fsarchiver restfs ${FSAOPTS} /${STOR_VOL}/${BACKNAME}.fsa id=0,dest=/dev/${VOL_GROUP}/${SNAP_VOL}
     lvconvert --merge /dev/${VOL_GROUP}/${SNAP_VOL}
+
+    umount ${BOOT_PARTITION}
+    dd if=/${STOR_VOL}/${BACKNAME}.img of=${BOOT_PARTITION}
+
+    echo "Finished. Please reboot!"
 fi
