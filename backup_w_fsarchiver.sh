@@ -115,13 +115,13 @@ fi
 
 # create the lvm snapshot
 lvcreate -l 100%FREE -s -n ${SNAP_VOL} /dev/${VOL_GROUP}/${ORIG_VOL}
+umount ${BOOT_PARTITION}
 
 if $backup_f ; then
     fsarchiver savefs -o ${FSAOPTS} /${STOR_VOL}/${BACKNAME}.fsa /dev/${VOL_GROUP}/${SNAP_VOL}
     md5sum /${STOR_VOL}/${BACKNAME}.fsa > /${STOR_VOL}/${BACKNAME}.md5
     lvremove -f /dev/${VOL_GROUP}/${SNAP_VOL}
 
-    umount ${BOOT_PARTITION}
     dd if=${BOOT_PARTITION} of=/${STOR_VOL}/${BACKNAME}.img
     mount ${BOOT_PARTITION} /boot
 
@@ -133,7 +133,6 @@ if $restore_f ; then
     fsarchiver restfs ${FSAOPTS} /${STOR_VOL}/${BACKNAME}.fsa id=0,dest=/dev/${VOL_GROUP}/${SNAP_VOL}
     lvconvert --merge /dev/${VOL_GROUP}/${SNAP_VOL}
 
-    umount ${BOOT_PARTITION}
     dd if=/${STOR_VOL}/${BACKNAME}.img of=${BOOT_PARTITION}
 
     echo "Finished. Please reboot!"
